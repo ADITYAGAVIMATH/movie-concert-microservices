@@ -13,17 +13,18 @@ A containerized, microservices-based ticket booking platform designed for movies
 - [Service Specifications](#service-specifications)
   - [Event Service](#event-service)
   - [User Service](#user-service)
-  - [Upcoming Services](#upcoming-services)
+  - [Seat Service](#seat-service)
+  - [Booking Service](#booking-service)
+  - [Payment Service](#payment-service)
 - [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Running Event Service (Locally)](#running-event-service-locally)
-  - [Running Event Service (Docker)](#running-event-service-docker)
-  - [Running User Service (Locally)](#running-user-service-locally)
-  - [Running User Service (Docker)](#running-user-service-docker)
-  - [Multi-Container Deployment (Docker Compose)](#multi-container-deployment-docker-compose)
+- [Prerequisites](#prerequisites)
+- [Running Event Service](#running-event-service)
+- [Running User Service](#running-user-service)
+- [Running Seat Service](#running-seat-service)
+- [Running Booking Service](#running-booking-service)
+- [Running Payment Service](#running-payment-service)
+- [Docker Network](#docker-network)
 - [API Testing & Verification](#api-testing--verification)
-  - [Event Service Testing](#event-service-testing)
-  - [User Service Testing](#user-service-testing)
 - [Load Testing & Performance Evaluation](#load-testing--performance-evaluation)
 - [Project Roadmap](#project-roadmap)
 - [Academic Context](#academic-context)
@@ -32,14 +33,16 @@ A containerized, microservices-based ticket booking platform designed for movies
 
 ## Project Overview
 
-The **Movie & Concert Ticket Booking System** decouples traditional monolithic ticketing operations into autonomous, loosely-coupled microservices. Each service encapsulates a distinct business domain with its own code, dependencies, and deployment lifecycle.
+The Movie & Concert Ticket Booking System decouples traditional monolithic ticketing operations into autonomous, loosely-coupled microservices. Each service encapsulates a distinct business domain with its own code, dependencies, and deployment lifecycle.
 
-### Key Objectives:
+### Key Objectives
+
 - **Domain-Driven Isolation:** Independent microservices for Users, Events, Seats, Bookings, and Payments.
-- **Containerization:** Each service packages its own runtime environment via lightweight Docker containers (`python:3.12-slim`).
-- **Standardized REST Communication:** Clear HTTP/JSON contracts between gateway and services.
-- **Scalability & Orchestration:** Orchestrated via Docker Compose with dedicated networking and service discovery.
-- **Performance Evaluation:** Rigorous load testing using [Locust](https://locust.io/) and custom Python stress generators to evaluate latency, throughput, and stability.
+- **Containerization:** Each service packages its own runtime environment using Docker containers.
+- **Standardized REST Communication:** Clear HTTP/JSON communication between services.
+- **Scalability & Orchestration:** Services can be connected and managed using Docker Compose.
+- **Service Independence:** Each microservice can be developed, tested, built, and deployed independently.
+- **Performance Evaluation:** Load testing using Locust and custom Python load generators.
 
 ---
 
@@ -48,531 +51,1360 @@ The **Movie & Concert Ticket Booking System** decouples traditional monolithic t
 ```text
                            +------------------+
                            |      Client      |
-                           | (Web / Mobile)   |
+                           |  Web / Mobile    |
                            +--------+---------+
                                     |
                                     | HTTP / REST
                                     v
                            +------------------+
                            |   API Gateway    |
-                           |  (Reverse Proxy) |
-                           |   (Port 8000)    |
+                           |   Port 8000      |
                            +--------+---------+
                                     |
-         +--------------------------+--------------------------+
-         |                          |                          |
-         v                          v                          v
-  +--------------+           +--------------+           +--------------+
-  | User Service |           | Event Service|           | Seat Service |
-  | (Auth/Users) |           |  (Catalog)   |           | (Layout/Lock)|
-  | (Port 5002)  |           | (Port 5001)  |           | (Port 5003)  |
-  +--------------+           +------+-------+           +--------------+
-                                    |
-                                    v
-                             +--------------+
-                             |Booking Serv. |
-                             | (Reservation)|
-                             | (Port 5004)  |
-                             +------+-------+
-                                    |
-                                    v
-                             +--------------+
-                             | Payment Serv.|
-                             | (Transaction)|
-                             | (Port 5005)  |
-                             +--------------+
+              +---------------------+----------------------+
+              |                     |                      |
+              v                     v                      v
+       +--------------+      +--------------+      +--------------+
+       | User Service |      | Event Service|      | Seat Service |
+       |   Port 5002  |      |   Port 5001  |      |   Port 5003  |
+       +--------------+      +--------------+      +------+-------+
+                                                         |
+                                                         v
+                                                  +--------------+
+                                                  |Booking Service|
+                                                  |   Port 5004  |
+                                                  +------+-------+
+                                                         |
+                                                         v
+                                                  +--------------+
+                                                  |Payment Service|
+                                                  |   Port 5005  |
+                                                  +--------------+
 ```
 
-```mermaid
-flowchart TD
-    Client["Client / User Browser"] -->|HTTP Requests| Gateway["API Gateway (Port 8000)"]
-    Gateway -->|/users| UserSvc["User Service (Port 5002:5000)"]
-    Gateway -->|/events| EventSvc["Event Service (Port 5001:5000)"]
-    Gateway -->|/seats| SeatSvc["Seat Service (Port 5003)"]
-    Gateway -->|/bookings| BookingSvc["Booking Service (Port 5004)"]
-    BookingSvc -->|Verify Event| EventSvc
-    BookingSvc -->|Reserve Seat| SeatSvc
-    BookingSvc -->|Process Payment| PaymentSvc["Payment Service (Port 5005)"]
+### Booking Service Communication Flow
+
+```text
+Client
+  |
+  v
+Booking Service
+  |
+  +----> User Service
+  |       Verify User
+  |
+  +----> Event Service
+  |       Verify Event
+  |
+  +----> Seat Service
+  |       Reserve Seats
+  |
+  +----> Payment Service
+          Process Payment
+  |
+  v
+Booking Confirmed
 ```
 
 ---
 
 ## Microservices Breakdown
 
-| Service | Host Port | Container Port | Description | Technology | Status |
-| :--- | :---: | :---: | :--- | :--- | :---: |
-| **API Gateway** | `8000` | `80` / `8000` | Unified entry point, request routing, rate limiting | Reverse Proxy | *Planned* |
-| **Event Service** | `5001` | `5000` | Catalogs movies and concerts, venues, dates, and details | Python / Flask / Docker | **Active** |
-| **User Service** | `5002` | `5000` | User registration, authentication, and profile management | Python / Flask / Docker | **Active** |
-| **Seat Service** | `5003` | `5000` | Seat layouts, availability tracking, and concurrency locks | Python / Flask / Docker | *Planned* |
-| **Booking Service** | `5004` | `5000` | Booking orchestration, reservations, and order history | Python / Flask / Docker | *Planned* |
-| **Payment Service** | `5005` | `5000` | Payment processing, transaction simulation, and receipts | Python / Flask / Docker | *Planned* |
+| Service | Host Port | Container Port | Description | Status |
+| :--- | :---: | :---: | :--- | :---: |
+| API Gateway | 8000 | 8000 | Unified entry point and request routing | Planned |
+| Event Service | 5001 | 5000 | Manages movie and concert event information | Active |
+| User Service | 5002 | 5000 | Manages users and user profiles | Active |
+| Seat Service | 5003 | 5000 | Manages seat availability, reservation and release | Active |
+| Booking Service | 5004 | 5000 | Coordinates the complete booking workflow | Active |
+| Payment Service | 5005 | 5000 | Processes payments and generates transactions | Active |
 
 ---
 
-## Repository Structure
+# Repository Structure
 
 ```text
 movie-concert-microservices/
-├── api-gateway/               # API Gateway configuration and routing rules
-├── architecture/              # Architecture diagrams, design docs, and workflows
-├── docs/                      # Lab reports, assignment notes, and technical documentation
-├── load-testing/              # Locust scripts (locustfile.py) and custom load generators
-├── results/                   # Performance charts, latency logs, and benchmark summaries
+│
+├── api-gateway/
+│   └── API Gateway configuration and routing
+│
+├── architecture/
+│   └── Architecture diagrams and design documents
+│
+├── docs/
+│   └── Project documentation
+│
+├── load-testing/
+│   ├── locustfile.py
+│   └── load_generator.py
+│
+├── results/
+│   └── Performance results and graphs
+│
 ├── services/
-│   ├── event-service/         # Event Catalog Microservice
-│   │   ├── Dockerfile         # Container specification (python:3.12-slim)
-│   │   ├── requirements.txt   # Service dependencies (Flask 3.1.2)
-│   │   └── app.py             # Flask application code & REST endpoints
-│   └── user-service/          # User Management Microservice
-│       ├── Dockerfile         # Container specification (python:3.12-slim)
-│       ├── requirements.txt   # Service dependencies (Flask 3.1.2)
-│       └── app.py             # Flask application code & REST endpoints
-└── README.md                  # Project overview, documentation & setup guide
+│   │
+│   ├── event-service/
+│   │   ├── app.py
+│   │   ├── requirements.txt
+│   │   └── Dockerfile
+│   │
+│   ├── user-service/
+│   │   ├── app.py
+│   │   ├── requirements.txt
+│   │   └── Dockerfile
+│   │
+│   ├── seat-service/
+│   │   ├── app.py
+│   │   ├── requirements.txt
+│   │   └── Dockerfile
+│   │
+│   ├── booking-service/
+│   │   ├── app.py
+│   │   ├── requirements.txt
+│   │   └── Dockerfile
+│   │
+│   └── payment-service/
+│       ├── app.py
+│       ├── requirements.txt
+│       └── Dockerfile
+│
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-## Service Specifications
+# Service Specifications
 
-### Event Service
+## Event Service
 
-The **Event Service** is responsible for managing the catalog of entertainment events, including movies and concerts.
+The Event Service is responsible for managing movie and concert event information.
 
-- **Base URL:** `http://localhost:5001` (Docker mapped host port) / `http://localhost:5000` (Local direct execution)
-- **Container Port:** `5000`
-- **Host Port Mapping:** `5001:5000`
-- **Current Runtime:** Python 3.12 / Flask 3.1.2
+**Base URL:**
 
-#### Available Endpoints:
+```text
+http://localhost:5001
+```
 
-| Method | Endpoint | Description | Sample Status |
-| :--- | :--- | :--- | :---: |
-| `GET` | `/` | Health check & service status | `200 OK` |
-| `GET` | `/events` | Retrieve full list of movie & concert events | `200 OK` |
-| `GET` | `/events/<id>` | Retrieve specific event details by ID | `200 OK` / `404 Not Found` |
+**Container Port:** `5000`
 
-#### Endpoint Details & Payloads:
+**Host Port:** `5001`
 
-##### 1. Health Check
+### Available Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/` | Health check |
+| GET | `/events` | Retrieve all events |
+| GET | `/events/<id>` | Retrieve event by ID |
+
+### 1. Health Check
+
 ```http
 GET / HTTP/1.1
 Host: localhost:5001
 ```
-**Response (`200 OK`):**
+
+**Response:**
+
 ```json
 {
-  "service": "Event Service",
-  "status": "running"
+    "service": "Event Service",
+    "status": "running"
 }
 ```
 
-##### 2. Get All Events
+### 2. Get All Events
+
 ```http
 GET /events HTTP/1.1
 Host: localhost:5001
 ```
-**Response (`200 OK`):**
+
+**Response:**
+
 ```json
 [
-  {
+    {
+        "id": 1,
+        "name": "Avengers: Secret Wars",
+        "type": "movie",
+        "venue": "PVR Hubli",
+        "date": "2026-10-05"
+    },
+    {
+        "id": 2,
+        "name": "Arijit Singh Live",
+        "type": "concert",
+        "venue": "Bengaluru",
+        "date": "2026-10-10"
+    }
+]
+```
+
+### 3. Get Event by ID
+
+```http
+GET /events/1 HTTP/1.1
+Host: localhost:5001
+```
+
+**Response:**
+
+```json
+{
     "id": 1,
     "name": "Avengers: Secret Wars",
     "type": "movie",
     "venue": "PVR Hubli",
     "date": "2026-10-05"
-  },
-  {
-    "id": 2,
-    "name": "Arijit Singh Live",
-    "type": "concert",
-    "venue": "Bengaluru",
-    "date": "2026-10-10"
-  }
-]
-```
-
-##### 3. Get Event by ID
-```http
-GET /events/1 HTTP/1.1
-Host: localhost:5001
-```
-**Response (`200 OK`):**
-```json
-{
-  "id": 1,
-  "name": "Avengers: Secret Wars",
-  "type": "movie",
-  "venue": "PVR Hubli",
-  "date": "2026-10-05"
 }
 ```
-**Error Response (`404 Not Found` for invalid ID):**
+
+**Error Response:**
+
 ```json
 {
-  "error": "Event not found"
+    "error": "Event not found"
 }
 ```
 
 ---
 
-### User Service
+# User Service
 
-The **User Service** handles user identity management, customer profile registry, and account creation.
+The User Service handles user registration and user profile management.
 
-- **Base URL:** `http://localhost:5002` (Docker mapped host port) / `http://localhost:5000` (Local direct execution)
-- **Container Port:** `5000`
-- **Host Port Mapping:** `5002:5000`
-- **Current Runtime:** Python 3.12 / Flask 3.1.2
+**Base URL:**
 
-#### Available Endpoints:
+```text
+http://localhost:5002
+```
 
-| Method | Endpoint | Description | Sample Status |
-| :--- | :--- | :--- | :---: |
-| `GET` | `/` | Health check & service status | `200 OK` |
-| `GET` | `/users` | Retrieve full list of registered users | `200 OK` |
-| `GET` | `/users/<id>` | Retrieve specific user profile by ID | `200 OK` / `404 Not Found` |
-| `POST` | `/users` | Register / create a new user profile | `201 Created` |
+**Container Port:** `5000`
 
-#### Endpoint Details & Payloads:
+**Host Port:** `5002`
 
-##### 1. Health Check
+### Available Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/` | Health check |
+| GET | `/users` | Retrieve all users |
+| GET | `/users/<id>` | Retrieve user by ID |
+| POST | `/users` | Create a new user |
+
+### 1. Health Check
+
 ```http
 GET / HTTP/1.1
 Host: localhost:5002
 ```
-**Response (`200 OK`):**
+
+**Response:**
+
 ```json
 {
-  "service": "User Service",
-  "status": "running"
+    "service": "User Service",
+    "status": "running"
 }
 ```
 
-##### 2. Get All Users
+### 2. Get All Users
+
 ```http
 GET /users HTTP/1.1
 Host: localhost:5002
 ```
-**Response (`200 OK`):**
+
+**Response:**
+
 ```json
 [
-  {
-    "id": 1,
-    "name": "Manasa",
-    "email": "manasa@example.com"
-  }
+    {
+        "id": 1,
+        "name": "Manasa",
+        "email": "manasa@example.com"
+    },
+    {
+        "id": 2,
+        "name": "Renuka",
+        "email": "renuka@test.conm"
+    },
+    {
+        "id": 3,
+        "name": "Aditya",
+        "email": "aditya@test.conm"
+    }
 ]
 ```
 
-##### 3. Get User by ID
+### 3. Get User by ID
+
 ```http
 GET /users/1 HTTP/1.1
 Host: localhost:5002
 ```
-**Response (`200 OK`):**
+
+**Response:**
+
 ```json
 {
-  "id": 1,
-  "name": "Manasa",
-  "email": "manasa@example.com"
-}
-```
-**Error Response (`404 Not Found` for invalid ID):**
-```json
-{
-  "error": "User not found"
+    "id": 1,
+    "name": "Manasa",
+    "email": "manasa@example.com"
 }
 ```
 
-##### 4. Create New User
+### 4. Create New User
+
 ```http
 POST /users HTTP/1.1
 Host: localhost:5002
 Content-Type: application/json
 
 {
-  "name": "Alex Mercer",
-  "email": "alex@example.com"
+    "name": "Alex Mercer",
+    "email": "alex@example.com"
 }
 ```
-**Response (`201 Created`):**
+
+**Response:**
+
 ```json
 {
-  "id": 2,
-  "name": "Alex Mercer",
-  "email": "alex@example.com"
+    "id": 4,
+    "name": "Alex Mercer",
+    "email": "alex@example.com"
+}
+```
+
+### Invalid User
+
+```http
+GET /users/99 HTTP/1.1
+Host: localhost:5002
+```
+
+**Response:**
+
+```json
+{
+    "error": "User not found"
 }
 ```
 
 ---
 
-### Upcoming Services
+# Seat Service
 
-The following microservices are scheduled for implementation:
-- **Seat Service (Port `5003`):** Seat layout visualization, real-time availability tracking, and concurrency locks to prevent double-booking.
-- **Booking Service (Port `5004`):** Orchestrating transaction workflows between Event, Seat, User, and Payment services.
-- **Payment Service (Port `5005`):** Simulating payment gateway processing, transaction confirmations, and issuing digital receipts.
+The Seat Service manages seat availability, reservation, and release for events.
+
+**Base URL:**
+
+```text
+http://localhost:5003
+```
+
+**Container Port:** `5000`
+
+**Host Port:** `5003`
+
+### Available Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/` | Health check |
+| GET | `/seats/<event_id>` | Get all seats for an event |
+| GET | `/seats/<event_id>/available` | Get available seats |
+| POST | `/seats/<event_id>/reserve` | Reserve seats |
+| POST | `/seats/<event_id>/release` | Release seats |
+
+### 1. Health Check
+
+```http
+GET / HTTP/1.1
+Host: localhost:5003
+```
+
+**Response:**
+
+```json
+{
+    "service": "Seat Service",
+    "status": "running"
+}
+```
+
+### 2. Get All Seats
+
+```http
+GET /seats/1 HTTP/1.1
+Host: localhost:5003
+```
+
+**Response:**
+
+```json
+{
+    "event_id": 1,
+    "seats": {
+        "A1": "available",
+        "A2": "available",
+        "A3": "available",
+        "A4": "available",
+        "A5": "available",
+        "B1": "available",
+        "B2": "available",
+        "B3": "available",
+        "B4": "available",
+        "B5": "available"
+    }
+}
+```
+
+### 3. Get Available Seats
+
+```http
+GET /seats/1/available HTTP/1.1
+Host: localhost:5003
+```
+
+**Response:**
+
+```json
+{
+    "event_id": 1,
+    "available_seats": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5"
+    ]
+}
+```
+
+### 4. Reserve Seats
+
+```http
+POST /seats/1/reserve HTTP/1.1
+Host: localhost:5003
+Content-Type: application/json
+
+{
+    "seats": [
+        "A1",
+        "A2"
+    ]
+}
+```
+
+**Response:**
+
+```json
+{
+    "message": "Seats reserved successfully",
+    "event_id": 1,
+    "seats": [
+        "A1",
+        "A2"
+    ]
+}
+```
+
+### Seat Conflict
+
+If a seat is already reserved:
+
+```json
+{
+    "error": "Some seats are not available",
+    "seats": [
+        "A1"
+    ]
+}
+```
+
+### 5. Release Seats
+
+```http
+POST /seats/1/release HTTP/1.1
+Host: localhost:5003
+Content-Type: application/json
+
+{
+    "seats": [
+        "A1",
+        "A2"
+    ]
+}
+```
+
+**Response:**
+
+```json
+{
+    "message": "Seats released successfully",
+    "event_id": 1,
+    "seats": [
+        "A1",
+        "A2"
+    ]
+}
+```
 
 ---
 
-## Getting Started
+# Booking Service
 
-### Prerequisites
-- [Git](https://git-scm.com/) installed
-- [Python 3.10+](https://www.python.org/downloads/) installed (for local non-containerized execution)
-- [Docker](https://www.docker.com/) & Docker Compose installed (for containerized execution)
+The Booking Service is the central orchestration service responsible for coordinating User, Event, Seat, and Payment services.
+
+**Base URL:**
+
+```text
+http://localhost:5004
+```
+
+**Container Port:** `5000`
+
+**Host Port:** `5004`
+
+**Dependencies:**
+
+```text
+User Service
+Event Service
+Seat Service
+Payment Service
+```
+
+## Booking Workflow
+
+```text
+                 +------------------+
+                 | Booking Request  |
+                 +--------+---------+
+                          |
+                          v
+                 +------------------+
+                 | Booking Service  |
+                 +--------+---------+
+                          |
+          +---------------+---------------+
+          |               |               |
+          v               v               v
+   User Service    Event Service    Seat Service
+   Verify User     Verify Event     Reserve Seats
+          |               |               |
+          +---------------+---------------+
+                          |
+                          v
+                  Payment Service
+                  Process Payment
+                          |
+                          v
+                  Booking Confirmed
+```
+
+### Available Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/` | Health check |
+| POST | `/bookings` | Create a booking |
+
+### 1. Health Check
+
+```http
+GET / HTTP/1.1
+Host: localhost:5004
+```
+
+**Response:**
+
+```json
+{
+    "service": "Booking Service",
+    "status": "running"
+}
+```
+
+### 2. Create Booking
+
+```http
+POST /bookings HTTP/1.1
+Host: localhost:5004
+Content-Type: application/json
+
+{
+    "user_id": 2,
+    "event_id": 1,
+    "seats": [
+        "A1",
+        "A2"
+    ]
+}
+```
+
+### Booking Processing Steps
+
+The Booking Service performs the following operations:
+
+1. Verifies the user through the User Service.
+2. Verifies the event through the Event Service.
+3. Reserves seats through the Seat Service.
+4. Calculates the ticket amount.
+5. Sends the payment request to the Payment Service.
+6. Releases seats if payment processing fails.
+7. Creates the booking confirmation.
+
+**Ticket Price:**
+
+```text
+₹500 per seat
+```
+
+### Successful Booking Response
+
+```json
+{
+    "message": "Booking created successfully",
+    "booking_id": "generated-uuid",
+    "user": {
+        "id": 2,
+        "name": "Renuka",
+        "email": "renuka@test.conm"
+    },
+    "event": {
+        "id": 1,
+        "name": "Avengers: Secret Wars",
+        "type": "movie",
+        "venue": "PVR Hubli",
+        "date": "2026-10-05"
+    },
+    "seats": [
+        "A1",
+        "A2"
+    ],
+    "amount": 1000,
+    "payment": {
+        "message": "Payment successful",
+        "transaction_id": "generated-uuid",
+        "user_id": 2,
+        "amount": 1000,
+        "status": "completed"
+    },
+    "status": "confirmed"
+}
+```
+
+### Seat Conflict Response
+
+```json
+{
+    "error": "Seat reservation failed",
+    "details": {
+        "error": "Some seats are not available",
+        "seats": [
+            "A1"
+        ]
+    }
+}
+```
 
 ---
 
-### Running Event Service (Locally)
+# Payment Service
 
-1. **Navigate to the event service directory:**
-   ```bash
-   cd services/event-service
-   ```
+The Payment Service processes payments and generates a unique transaction ID for each successful payment.
 
-2. **Create and activate a virtual environment:**
-   - **Linux / macOS:**
-     ```bash
-     python3 -m venv venv
-     source venv/bin/activate
-     ```
-   - **Windows (PowerShell):**
-     ```powershell
-     python -m venv venv
-     .\venv\Scripts\Activate.ps1
-     ```
+**Base URL:**
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+```text
+http://localhost:5005
+```
 
-4. **Start the service:**
-   ```bash
-   python app.py
-   ```
-   The service will be accessible locally at: `http://localhost:5000`
+**Container Port:** `5000`
 
----
+**Host Port:** `5005`
 
-### Running Event Service (Docker)
+### Available Endpoints
 
-1. **Build the Docker image:**
-   ```bash
-   cd services/event-service
-   docker build -t event-service:v1 .
-   ```
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/` | Health check |
+| POST | `/payments` | Process a payment |
 
-2. **Run the container (mapped to host port `5001`):**
-   ```bash
-   docker run -d -p 5001:5000 --name event-service-container event-service:v1
-   ```
+### 1. Health Check
 
-3. **Verify running container:**
-   ```bash
-   docker ps
-   ```
+```http
+GET / HTTP/1.1
+Host: localhost:5005
+```
 
-4. **Stop and remove container:**
-   ```bash
-   docker stop event-service-container
-   docker rm event-service-container
-   ```
+**Response:**
 
----
+```json
+{
+    "service": "Payment Service",
+    "status": "running"
+}
+```
 
-### Running User Service (Locally)
+### 2. Process Payment
 
-1. **Navigate to the user service directory:**
-   ```bash
-   cd services/user-service
-   ```
+```http
+POST /payments HTTP/1.1
+Host: localhost:5005
+Content-Type: application/json
 
-2. **Create and activate a virtual environment:**
-   - **Linux / macOS:**
-     ```bash
-     python3 -m venv venv
-     source venv/bin/activate
-     ```
-   - **Windows (PowerShell):**
-     ```powershell
-     python -m venv venv
-     .\venv\Scripts\Activate.ps1
-     ```
+{
+    "user_id": 3,
+    "amount": 500
+}
+```
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+**Response:**
 
-4. **Start the service:**
-   ```bash
-   python app.py
-   ```
-   > **Note:** Both Event Service and User Service listen on port `5000` by default when run directly with `python app.py`. For concurrent local testing, use Docker port mapping (`5001:5000` and `5002:5000`).
+```json
+{
+    "message": "Payment successful",
+    "transaction_id": "generated-uuid",
+    "user_id": 3,
+    "amount": 500,
+    "status": "completed"
+}
+```
+
+### Invalid Amount
+
+```json
+{
+    "error": "Amount must be greater than zero"
+}
+```
 
 ---
 
-### Running User Service (Docker)
+# Getting Started
 
-1. **Build the Docker image:**
-   ```bash
-   cd services/user-service
-   docker build -t user-service:v1 .
-   ```
+## Prerequisites
 
-2. **Run the container (mapped to host port `5002`):**
-   ```bash
-   docker run -d -p 5002:5000 --name user-service-container user-service:v1
-   ```
+Install the following software before running the project:
 
-3. **Verify running container:**
-   ```bash
-   docker ps
-   ```
-
-4. **Stop and remove container:**
-   ```bash
-   docker stop user-service-container
-   docker rm user-service-container
-   ```
+- Git
+- Python 3.10+
+- Docker
+- Docker Desktop
+- Docker Compose
 
 ---
 
-### Multi-Container Deployment (Docker Compose)
+# Running Event Service
 
-Once the remaining services and API Gateway are containerized, the entire application stack can be provisioned simultaneously:
+Navigate to the service directory:
 
 ```bash
-# From project root
+cd services/event-service
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run the service:
+
+```bash
+python app.py
+```
+
+The service will run on:
+
+```text
+http://localhost:5000
+```
+
+### Docker
+
+Build the image:
+
+```bash
+docker build -t event-service:v1 .
+```
+
+Run the container:
+
+```bash
+docker run -d -p 5001:5000 --name event-service-container event-service:v1
+```
+
+Check the container:
+
+```bash
+docker ps
+```
+
+---
+
+# Running User Service
+
+Navigate to the service directory:
+
+```bash
+cd services/user-service
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run the service:
+
+```bash
+python app.py
+```
+
+### Docker
+
+Build the image:
+
+```bash
+docker build -t user-service:v1 .
+```
+
+Run the container:
+
+```bash
+docker run -d -p 5002:5000 --name user-service-container user-service:v1
+```
+
+Check the container:
+
+```bash
+docker ps
+```
+
+---
+
+# Running Seat Service
+
+Navigate to the service directory:
+
+```bash
+cd services/seat-service
+```
+
+Build the Docker image:
+
+```bash
+docker build -t seat-service:v1 .
+```
+
+Run the container:
+
+```bash
+docker run -d \
+    --name seat-service-container \
+    -p 5003:5000 \
+    seat-service:v1
+```
+
+Check the container:
+
+```bash
+docker ps
+```
+
+The Seat Service will be available at:
+
+```text
+http://localhost:5003
+```
+
+---
+
+# Running Payment Service
+
+Navigate to the service directory:
+
+```bash
+cd services/payment-service
+```
+
+Build the Docker image:
+
+```bash
+docker build -t payment-service:v1 .
+```
+
+Run the container:
+
+```bash
+docker run -d \
+    --name payment-service-container \
+    -p 5005:5000 \
+    payment-service:v1
+```
+
+Check the container:
+
+```bash
+docker ps
+```
+
+The Payment Service will be available at:
+
+```text
+http://localhost:5005
+```
+
+---
+
+# Running Booking Service
+
+The Booking Service communicates with the other services using Docker container networking.
+
+Create the Docker network:
+
+```bash
+docker network create microservices-network
+```
+
+Build the Booking Service image:
+
+```bash
+cd services/booking-service
+
+docker build -t booking-service:v1 .
+```
+
+Run the Booking Service:
+
+```bash
+docker run -d \
+    --name booking-service-container \
+    --network microservices-network \
+    -p 5004:5000 \
+    booking-service:v1
+```
+
+The Booking Service uses the following internal service addresses:
+
+```text
+http://user-service-container:5000
+http://event-service-container:5000
+http://seat-service-container:5000
+http://payment-service-container:5000
+```
+
+The Booking Service is available from the host at:
+
+```text
+http://localhost:5004
+```
+
+---
+
+# Docker Network
+
+The microservices communicate with each other through a dedicated Docker bridge network.
+
+```bash
+docker network create microservices-network
+```
+
+View available Docker networks:
+
+```bash
+docker network ls
+```
+
+Inspect the microservices network:
+
+```bash
+docker network inspect microservices-network
+```
+
+Expected services connected to the network:
+
+```text
+event-service-container
+user-service-container
+seat-service-container
+booking-service-container
+payment-service-container
+```
+
+---
+
+# API Testing & Verification
+
+The services can be tested using:
+
+- cURL
+- PowerShell
+- Postman
+
+---
+
+# Event Service Testing
+
+### Health Check
+
+```powershell
+Invoke-RestMethod http://localhost:5001/
+```
+
+### Get All Events
+
+```powershell
+Invoke-RestMethod http://localhost:5001/events
+```
+
+### Get Event by ID
+
+```powershell
+Invoke-RestMethod http://localhost:5001/events/1
+```
+
+### Invalid Event
+
+```powershell
+Invoke-RestMethod http://localhost:5001/events/99
+```
+
+---
+
+# User Service Testing
+
+### Health Check
+
+```powershell
+Invoke-RestMethod http://localhost:5002/
+```
+
+### Get All Users
+
+```powershell
+Invoke-RestMethod http://localhost:5002/users
+```
+
+### Get User by ID
+
+```powershell
+Invoke-RestMethod http://localhost:5002/users/1
+```
+
+### Create User
+
+```powershell
+$body = @{
+    name = "Alex Mercer"
+    email = "alex@example.com"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "http://localhost:5002/users" `
+    -Method Post `
+    -Body $body `
+    -ContentType "application/json"
+```
+
+---
+
+# Seat Service Testing
+
+### Health Check
+
+```powershell
+Invoke-RestMethod http://localhost:5003/
+```
+
+### Get All Seats
+
+```powershell
+Invoke-RestMethod http://localhost:5003/seats/1
+```
+
+### Get Available Seats
+
+```powershell
+Invoke-RestMethod http://localhost:5003/seats/1/available
+```
+
+### Reserve Seats
+
+```powershell
+$body = @{
+    seats = @("A1", "A2")
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "http://localhost:5003/seats/1/reserve" `
+    -Method Post `
+    -Body $body `
+    -ContentType "application/json"
+```
+
+### Release Seats
+
+```powershell
+$body = @{
+    seats = @("A1", "A2")
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "http://localhost:5003/seats/1/release" `
+    -Method Post `
+    -Body $body `
+    -ContentType "application/json"
+```
+
+---
+
+# Booking Service Testing
+
+### Health Check
+
+```powershell
+Invoke-RestMethod http://localhost:5004/
+```
+
+### Create Booking
+
+```powershell
+$body = @{
+    user_id = 2
+    event_id = 1
+    seats = @("A1", "A2")
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "http://localhost:5004/bookings" `
+    -Method Post `
+    -Body $body `
+    -ContentType "application/json"
+```
+
+The Booking Service automatically communicates with:
+
+```text
+User Service
+Event Service
+Seat Service
+Payment Service
+```
+
+---
+
+# Payment Service Testing
+
+### Health Check
+
+```powershell
+Invoke-RestMethod http://localhost:5005/
+```
+
+### Process Payment
+
+```powershell
+$body = @{
+    user_id = 3
+    amount = 500
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "http://localhost:5005/payments" `
+    -Method Post `
+    -Body $body `
+    -ContentType "application/json"
+```
+
+---
+
+# Multi-Container Deployment
+
+The final system is intended to be orchestrated using Docker Compose.
+
+From the project root:
+
+```bash
 docker compose up --build -d
 ```
 
-To stop all services:
+Check all running containers:
+
+```bash
+docker ps
+```
+
+Stop the complete application:
+
 ```bash
 docker compose down
 ```
 
 ---
 
-## API Testing & Verification
+# Load Testing & Performance Evaluation
 
-You can test the endpoints using `curl` or PowerShell.
+One of the major objectives of the project is evaluating the performance of the microservices architecture under different workloads.
 
-### Event Service Testing (Host Port `5001`)
+## Testing Tools
 
-#### Using cURL:
+### Locust
+
+Locust is used to simulate multiple concurrent users and measure system performance.
+
+The Locust scripts will be maintained inside:
+
+```text
+load-testing/
+```
+
+### Custom Python Load Generator
+
+A custom Python load generator is used to generate high-volume requests and evaluate the performance of individual services and the complete system.
+
+---
+
+## Workloads
+
+The system will be evaluated using different workloads:
+
+```text
+100 Users
+1,000 Users
+10,000 Users
+```
+
+---
+
+## Performance Metrics
+
+The following metrics will be collected:
+
+### Throughput
+
+Number of requests processed per second.
+
+```text
+Requests Per Second (RPS)
+```
+
+### Response Time
+
+Response latency for service requests.
+
+Important percentiles include:
+
+```text
+50th percentile
+90th percentile
+95th percentile
+99th percentile
+```
+
+### Failure Rate
+
+Percentage of failed requests under different loads.
+
+### Resource Utilization
+
+Container resource usage can be monitored using:
+
 ```bash
-# Service Health
-curl -X GET http://localhost:5001/
-
-# List All Events
-curl -X GET http://localhost:5001/events
-
-# Get Event by ID
-curl -X GET http://localhost:5001/events/1
-
-# Invalid Event (404 Test)
-curl -X GET http://localhost:5001/events/99
+docker stats
 ```
 
-#### Using PowerShell:
-```powershell
-# Health check
-Invoke-RestMethod -Uri "http://localhost:5001/" -Method Get
+Metrics include:
 
-# Fetch all events
-Invoke-RestMethod -Uri "http://localhost:5001/events" -Method Get
-
-# Fetch event by ID
-Invoke-RestMethod -Uri "http://localhost:5001/events/1" -Method Get
-```
+- CPU usage
+- Memory usage
+- Network usage
+- Container resource consumption
 
 ---
 
-### User Service Testing (Host Port `5002`)
-
-#### Using cURL:
-```bash
-# Service Health
-curl -X GET http://localhost:5002/
-
-# List All Users
-curl -X GET http://localhost:5002/users
-
-# Get User by ID
-curl -X GET http://localhost:5002/users/1
-
-# Create New User
-curl -X POST http://localhost:5002/users \
-  -H "Content-Type: application/json" \
-  -d "{\"name\": \"John Doe\", \"email\": \"john@example.com\"}"
-
-# Invalid User (404 Test)
-curl -X GET http://localhost:5002/users/99
-```
-
-#### Using PowerShell:
-```powershell
-# Health check
-Invoke-RestMethod -Uri "http://localhost:5002/" -Method Get
-
-# Fetch all users
-Invoke-RestMethod -Uri "http://localhost:5002/users" -Method Get
-
-# Fetch user by ID
-Invoke-RestMethod -Uri "http://localhost:5002/users/1" -Method Get
-
-# Create new user
-$body = @{
-    name = "John Doe"
-    email = "john@example.com"
-} | ConvertTo-Json
-
-Invoke-RestMethod -Uri "http://localhost:5002/users" -Method Post -Body $body -ContentType "application/json"
-```
-
----
-
-## Load Testing & Performance Evaluation
-
-One of the core objectives of this project is evaluating microservices under varying concurrent workloads.
-
-### Testing Tools:
-1. **Locust (`load-testing/locustfile.py`):**
-   - User behavior simulation (browsing events, selecting seats, initiating checkout).
-   - Configurable user count, spawn rate, and run duration.
-   - Real-time web UI metrics dashboard.
-2. **Custom Python Load Generator (`load-testing/load_generator.py`):**
-   - High-throughput asynchronous request generator (`asyncio` / `aiohttp`).
-   - Stress testing specific endpoints for latency degradation and maximum concurrency limits.
-
-### Evaluation Metrics:
-- **Throughput:** Requests per second (RPS).
-- **Latency Distribution:** Median, 90th, 95th, and 99th percentile response times (ms).
-- **Failure Rate:** Error percentage under peak concurrency.
-- **Resource Utilization:** CPU and memory consumption per container using `docker stats`.
-
-*Benchmark results and graphs will be compiled and archived in the [`results/`](./results) directory.*
-
----
-
-## Project Roadmap
+# Project Roadmap
 
 - [x] **Milestone 1:** Architecture & domain modeling
-- [x] **Milestone 2:** Implement & containerize **Event Service**
-- [x] **Milestone 3:** Implement & containerize **User Service** (User registry & profile management)
-- [ ] **Milestone 4:** Implement **Seat Service** (Seat layout & concurrency locking)
-- [ ] **Milestone 5:** Implement **Booking Service** & **Payment Service**
-- [ ] **Milestone 6:** Configure **API Gateway** & complete `docker-compose.yml`
-- [ ] **Milestone 7:** Execute Locust load testing & generate performance benchmark report
+- [x] **Milestone 2:** Implement & containerize Event Service
+- [x] **Milestone 3:** Implement & containerize User Service
+- [x] **Milestone 4:** Implement & containerize Seat Service
+- [x] **Milestone 5:** Implement & containerize Booking Service
+- [x] **Milestone 5:** Implement & containerize Payment Service
+- [ ] **Milestone 6:** Configure API Gateway
+- [ ] **Milestone 6:** Complete Docker Compose configuration
+- [ ] **Milestone 7:** Execute Locust load testing
+- [ ] **Milestone 7:** Execute custom Python load testing
+- [ ] **Milestone 7:** Generate performance graphs and benchmark report
 
 ---
 
-## Academic Context
+# Current Service Status
 
-- **Course:** Cloud Computing Laboratory (CCLab) — Semester 5
-- **Institution:** KLE Technological University
-- **Focus:** Microservices Design Patterns, Containerization, Distributed Orchestration & Workload Benchmarking
+| Service | Port | Docker | REST API | Status |
+| :--- | :---: | :---: | :---: | :---: |
+| Event Service | 5001 | Yes | Yes | Active |
+| User Service | 5002 | Yes | Yes | Active |
+| Seat Service | 5003 | Yes | Yes | Active |
+| Booking Service | 5004 | Yes | Yes | Active |
+| Payment Service | 5005 | Yes | Yes | Active |
+| API Gateway | 8000 | Planned | Planned | Planned |
+
+---
+
+# Academic Context
+
+**Course:** Cloud Computing Laboratory (CCLab) — Semester 5
+
+**Institution:** KLE Technological University
+
+**Project:** Movie & Concert Ticket Booking System
+
+**Focus Areas:**
+
+- Microservices Architecture
+- RESTful APIs
+- Docker Containerization
+- Inter-Service Communication
+- Service Discovery
+- Docker Networking
+- Docker Compose
+- Load Testing
+- Performance Benchmarking
+- Distributed System Design
+
+---
+
+## Team Contributions
+
+The project is developed collaboratively with individual microservices and system components implemented by different team members.
+
+### Services Implemented
+
+- **Event Service**
+- **User Service**
+- **Seat Service**
+- **Booking Service**
+- **Payment Service**
+
+### Upcoming System Components
+
+- API Gateway
+- Docker Compose orchestration
+- Locust performance testing
+- Custom Python load generator
+- Performance analysis and visualization
