@@ -1,14 +1,18 @@
-from flask import Flask, jsonify, request
-import requests
+import os
 import uuid
+import requests
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-# Other microservices
-USER_SERVICE_URL = "http://user-service-container:5000"
-EVENT_SERVICE_URL = "http://event-service-container:5000"
-SEAT_SERVICE_URL = "http://seat-service-container:5000"
-PAYMENT_SERVICE_URL = "http://payment-service-container:5000"
+# Service endpoints configurable via environment variables with container defaults
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://user-service-container:5000")
+EVENT_SERVICE_URL = os.getenv("EVENT_SERVICE_URL", "http://event-service-container:5000")
+SEAT_SERVICE_URL = os.getenv("SEAT_SERVICE_URL", "http://seat-service-container:5000")
+PAYMENT_SERVICE_URL = os.getenv("PAYMENT_SERVICE_URL", "http://payment-service-container:5000")
+
+# In-memory store for confirmed bookings
+bookings_db = []
 
 
 @app.route("/")
@@ -17,6 +21,19 @@ def home():
         "service": "Booking Service",
         "status": "running"
     })
+
+
+@app.route("/bookings", methods=["GET"])
+def get_bookings():
+    return jsonify(bookings_db), 200
+
+
+@app.route("/bookings/<string:booking_id>", methods=["GET"])
+def get_booking(booking_id):
+    booking = next((b for b in bookings_db if b["booking_id"] == booking_id), None)
+    if booking:
+        return jsonify(booking), 200
+    return jsonify({"error": "Booking not found"}), 404
 
 
 @app.route("/bookings", methods=["POST"])
@@ -29,7 +46,6 @@ def create_booking():
         }), 400
 
     required_fields = ["user_id", "event_id", "seats"]
-
     for field in required_fields:
         if field not in data:
             return jsonify({
@@ -40,9 +56,9 @@ def create_booking():
     event_id = data["event_id"]
     requested_seats = data["seats"]
 
-    if not requested_seats:
+    if not requested_seats or not isinstance(requested_seats, list):
         return jsonify({
-            "error": "At least one seat is required"
+            "error": "At least one seat is required as a list"
         }), 400
 
     # ------------------------------------------------
@@ -91,9 +107,7 @@ def create_booking():
     try:
         seat_response = requests.post(
             f"{SEAT_SERVICE_URL}/seats/{event_id}/reserve",
-            json={
-                "seats": requested_seats
-            },
+            json={"seats": requested_seats},
             timeout=5
         )
     except requests.RequestException:
@@ -108,13 +122,9 @@ def create_booking():
         }), seat_response.status_code
 
     # ------------------------------------------------
-    # 4. Calculate Amount
+    # 4. Calculate Amount (500 per seat)
     # ------------------------------------------------
-    seat_count = len(requested_seats)
-
-    # Simple fixed ticket price for course project
-    ticket_price = 500
-    amount = seat_count * ticket_price
+    total_amount = len(requested_seats) * 500
 
     # ------------------------------------------------
     # 5. Process Payment
@@ -124,65 +134,52 @@ def create_booking():
             f"{PAYMENT_SERVICE_URL}/payments",
             json={
                 "user_id": user_id,
-                "amount": amount
+                "amount": total_amount
             },
             timeout=5
         )
     except requests.RequestException:
-        # Payment service unavailable.
-        # Release the seats that were reserved.
-        try:
-            requests.post(
-                f"{SEAT_SERVICE_URL}/seats/{event_id}/release",
-                json={
-                    "seats": requested_seats
-                },
-                timeout=5
-            )
-        except requests.RequestException:
-            pass
-
+        # Compensating transaction: release reserved seats
+        requests.post(
+            f"{SEAT_SERVICE_URL}/seats/{event_id}/release",
+            json={"seats": requested_seats},
+            timeout=5
+        )
         return jsonify({
-            "error": "Payment Service is unavailable",
-            "message": "Reserved seats were released"
+            "error": "Payment Service is unavailable, seats released"
         }), 503
 
     if payment_response.status_code != 200:
-        # Payment failed, so release seats
-        try:
-            requests.post(
-                f"{SEAT_SERVICE_URL}/seats/{event_id}/release",
-                json={
-                    "seats": requested_seats
-                },
-                timeout=5
-            )
-        except requests.RequestException:
-            pass
-
+        # Compensating transaction: release reserved seats
+        requests.post(
+            f"{SEAT_SERVICE_URL}/seats/{event_id}/release",
+            json={"seats": requested_seats},
+            timeout=5
+        )
         return jsonify({
-            "error": "Payment failed",
-            "details": payment_response.json(),
-            "message": "Reserved seats were released"
-        }), 400
+            "error": "Payment failed, seats released",
+            "details": payment_response.json()
+        }), payment_response.status_code
 
     payment = payment_response.json()
 
     # ------------------------------------------------
-    # 6. Create Booking
+    # 6. Confirm Booking
     # ------------------------------------------------
     booking_id = str(uuid.uuid4())
-
-    return jsonify({
+    booking_record = {
         "message": "Booking created successfully",
         "booking_id": booking_id,
         "user": user,
         "event": event,
         "seats": requested_seats,
-        "amount": amount,
+        "amount": total_amount,
         "payment": payment,
         "status": "confirmed"
-    }), 201
+    }
+
+    bookings_db.append(booking_record)
+    return jsonify(booking_record), 201
 
 
 if __name__ == "__main__":

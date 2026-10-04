@@ -2,9 +2,8 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-# In-memory seat data
-# Each event has its own set of seats.
-seats = {
+# Initial seat layout for events (Rows A and B, seats 1-5)
+seats_db = {
     1: {
         "A1": "available",
         "A2": "available",
@@ -42,25 +41,19 @@ def home():
 
 @app.route("/seats/<int:event_id>", methods=["GET"])
 def get_seats(event_id):
-    if event_id not in seats:
+    if event_id not in seats_db:
         return jsonify({"error": "Event not found"}), 404
-
     return jsonify({
         "event_id": event_id,
-        "seats": seats[event_id]
+        "seats": seats_db[event_id]
     })
 
 
 @app.route("/seats/<int:event_id>/available", methods=["GET"])
 def get_available_seats(event_id):
-    if event_id not in seats:
+    if event_id not in seats_db:
         return jsonify({"error": "Event not found"}), 404
-
-    available = [
-        seat for seat, status in seats[event_id].items()
-        if status == "available"
-    ]
-
+    available = [seat for seat, status in seats_db[event_id].items() if status == "available"]
     return jsonify({
         "event_id": event_id,
         "available_seats": available
@@ -69,40 +62,32 @@ def get_available_seats(event_id):
 
 @app.route("/seats/<int:event_id>/reserve", methods=["POST"])
 def reserve_seats(event_id):
-    if event_id not in seats:
+    if event_id not in seats_db:
         return jsonify({"error": "Event not found"}), 404
 
     data = request.get_json()
-
     if not data or "seats" not in data:
         return jsonify({"error": "Seats list is required"}), 400
 
     requested_seats = data["seats"]
+    if not isinstance(requested_seats, list) or len(requested_seats) == 0:
+        return jsonify({"error": "Invalid seats list"}), 400
 
-    invalid_seats = [
-        seat for seat in requested_seats
-        if seat not in seats[event_id]
-    ]
+    event_seats = seats_db[event_id]
+    unavailable = []
 
-    if invalid_seats:
-        return jsonify({
-            "error": "Invalid seat(s)",
-            "seats": invalid_seats
-        }), 400
+    for seat in requested_seats:
+        if seat not in event_seats or event_seats[seat] != "available":
+            unavailable.append(seat)
 
-    unavailable_seats = [
-        seat for seat in requested_seats
-        if seats[event_id][seat] != "available"
-    ]
-
-    if unavailable_seats:
+    if unavailable:
         return jsonify({
             "error": "Some seats are not available",
-            "seats": unavailable_seats
+            "seats": unavailable
         }), 409
 
     for seat in requested_seats:
-        seats[event_id][seat] = "reserved"
+        event_seats[seat] = "reserved"
 
     return jsonify({
         "message": "Seats reserved successfully",
@@ -113,34 +98,26 @@ def reserve_seats(event_id):
 
 @app.route("/seats/<int:event_id>/release", methods=["POST"])
 def release_seats(event_id):
-    if event_id not in seats:
+    if event_id not in seats_db:
         return jsonify({"error": "Event not found"}), 404
 
     data = request.get_json()
-
     if not data or "seats" not in data:
         return jsonify({"error": "Seats list is required"}), 400
 
-    requested_seats = data["seats"]
+    seats_to_release = data["seats"]
+    if not isinstance(seats_to_release, list):
+        return jsonify({"error": "Invalid seats list"}), 400
 
-    invalid_seats = [
-        seat for seat in requested_seats
-        if seat not in seats[event_id]
-    ]
-
-    if invalid_seats:
-        return jsonify({
-            "error": "Invalid seat(s)",
-            "seats": invalid_seats
-        }), 400
-
-    for seat in requested_seats:
-        seats[event_id][seat] = "available"
+    event_seats = seats_db[event_id]
+    for seat in seats_to_release:
+        if seat in event_seats:
+            event_seats[seat] = "available"
 
     return jsonify({
         "message": "Seats released successfully",
         "event_id": event_id,
-        "seats": requested_seats
+        "seats": seats_to_release
     }), 200
 
 

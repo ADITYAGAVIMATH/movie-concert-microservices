@@ -35,10 +35,9 @@ def get_events():
 
 @app.route("/events/<int:event_id>", methods=["GET"])
 def get_event(event_id):
-    for event in events:
-        if event["id"] == event_id:
-            return jsonify(event)
-
+    event = next((e for e in events if e["id"] == event_id), None)
+    if event:
+        return jsonify(event)
     return jsonify({"error": "Event not found"}), 404
 
 

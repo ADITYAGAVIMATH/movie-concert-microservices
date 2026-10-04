@@ -16,27 +16,24 @@ def home():
 def process_payment():
     data = request.get_json()
 
-    if not data:
+    if not data or "user_id" not in data or "amount" not in data:
         return jsonify({
-            "error": "Payment data is required"
+            "error": "user_id and amount are required"
         }), 400
 
-    required_fields = ["user_id", "amount"]
-
-    for field in required_fields:
-        if field not in data:
-            return jsonify({
-                "error": f"{field} is required"
-            }), 400
-
-    user_id = data["user_id"]
-    amount = data["amount"]
+    try:
+        amount = float(data["amount"])
+    except (ValueError, TypeError):
+        return jsonify({
+            "error": "Amount must be a valid number"
+        }), 400
 
     if amount <= 0:
         return jsonify({
             "error": "Amount must be greater than zero"
         }), 400
 
+    user_id = data["user_id"]
     transaction_id = str(uuid.uuid4())
 
     return jsonify({

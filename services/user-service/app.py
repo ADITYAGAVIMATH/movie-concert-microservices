@@ -7,6 +7,16 @@ users = [
         "id": 1,
         "name": "Manasa",
         "email": "manasa@example.com"
+    },
+    {
+        "id": 2,
+        "name": "Renuka",
+        "email": "renuka@test.conm"
+    },
+    {
+        "id": 3,
+        "name": "Aditya",
+        "email": "aditya@test.conm"
     }
 ]
 
@@ -26,16 +36,20 @@ def get_users():
 
 @app.route("/users/<int:user_id>", methods=["GET"])
 def get_user(user_id):
-    for user in users:
-        if user["id"] == user_id:
-            return jsonify(user)
-
+    user = next((u for u in users if u["id"] == user_id), None)
+    if user:
+        return jsonify(user)
     return jsonify({"error": "User not found"}), 404
 
 
 @app.route("/users", methods=["POST"])
 def create_user():
     data = request.get_json()
+
+    if not data or "name" not in data or "email" not in data:
+        return jsonify({
+            "error": "Name and email are required"
+        }), 400
 
     new_user = {
         "id": len(users) + 1,
@@ -44,7 +58,6 @@ def create_user():
     }
 
     users.append(new_user)
-
     return jsonify(new_user), 201
 
 
