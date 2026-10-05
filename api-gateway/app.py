@@ -103,6 +103,8 @@ def root():
         "port": 8000,
         "routes": {
             "/events": "Event Service (Catalog)",
+            "/movies": "Event Service (Movies filter)",
+            "/concerts": "Event Service (Concerts filter)",
             "/users": "User Service (Profiles)",
             "/seats": "Seat Service (Inventory & Locks)",
             "/bookings": "Booking Service (Orchestration)",
@@ -160,6 +162,24 @@ def route_events(subpath):
     if request.method == "OPTIONS":
         return Response("", status=204)
     full_path = f"events/{subpath}" if subpath else "events"
+    return forward_request(EVENT_SERVICE_URL, full_path)
+
+
+@app.route("/movies", defaults={"subpath": ""}, methods=["GET", "OPTIONS"])
+@app.route("/movies/<path:subpath>", methods=["GET", "OPTIONS"])
+def route_movies(subpath):
+    if request.method == "OPTIONS":
+        return Response("", status=204)
+    full_path = f"movies/{subpath}" if subpath else "movies"
+    return forward_request(EVENT_SERVICE_URL, full_path)
+
+
+@app.route("/concerts", defaults={"subpath": ""}, methods=["GET", "OPTIONS"])
+@app.route("/concerts/<path:subpath>", methods=["GET", "OPTIONS"])
+def route_concerts(subpath):
+    if request.method == "OPTIONS":
+        return Response("", status=204)
+    full_path = f"concerts/{subpath}" if subpath else "concerts"
     return forward_request(EVENT_SERVICE_URL, full_path)
 
 

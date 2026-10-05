@@ -41,5 +41,17 @@ def get_event(event_id):
     return jsonify({"error": "Event not found"}), 404
 
 
+@app.route("/movies", methods=["GET"])
+def get_movies():
+    movies = [e for e in events if e.get("type") == "movie"]
+    return jsonify(movies), 200
+
+
+@app.route("/concerts", methods=["GET"])
+def get_concerts():
+    concerts = [e for e in events if e.get("type") == "concert"]
+    return jsonify(concerts), 200
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
