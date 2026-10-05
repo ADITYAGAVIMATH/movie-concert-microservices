@@ -23,6 +23,7 @@ A containerized, microservices-based ticket booking platform designed for movies
   - [Running Individual Services](#running-individual-services)
 - [API Testing & Verification](#api-testing--verification)
 - [Load Testing & Performance Evaluation](#load-testing--performance-evaluation)
+- [Laboratory Verification & Evidence Report](VERIFICATION.md)
 - [Project Roadmap](#project-roadmap)
 - [Academic Context & Team Contributions](#academic-context--team-contributions)
 
@@ -305,6 +306,17 @@ python generate_graphs.py
 - [x] **Milestone 7:** Build Locust load testing suite (`locustfile.py`)
 - [x] **Milestone 7:** Build custom multi-threaded Python load generator (`load_generator.py`)
 - [x] **Milestone 7:** Generate performance charts, dashboard, and benchmark evaluation report
+
+---
+
+## Laboratory Verification & Execution Evidence
+
+A complete, screenshot-by-screenshot and video verification report mapped to the **Cloud Computing Laboratory Evaluation Manual** is documented in [**`VERIFICATION.md`**](VERIFICATION.md).
+
+### Verification Artifacts Summary
+- **Evaluation Guide:** [VERIFICATION.md](VERIFICATION.md)
+- **10 Verification Screenshots:** Located in [`scrnshots/`](scrnshots/) covering parallel image builds, container lifecycle status, distributed REST booking transactions, HTTP 409 concurrency protection, `docker stats` telemetry, API Gateway health pings, route forwarding, audit trails, and automated load benchmarks.
+- **Dynamic Session Video:** [`scrnshots/Recording 2026-10-05 115033.mp4`](scrnshots/Recording%202026-10-05%20115033.mp4) demonstrating live execution of the microservices system.
 
 ---
 
