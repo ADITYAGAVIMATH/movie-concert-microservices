@@ -124,9 +124,9 @@ Client -> API Gateway (Port 8000)
 movie-concert-microservices/
 │
 ├── api-gateway/
-│   ├── app.py                      # Reverse proxy & request router
+│   ├── app.py                      # Reverse proxy & request router (Port 8000)
 │   ├── requirements.txt            # Gateway dependencies (Flask, requests)
-│   └── Dockerfile                  # Gateway container spec (Port 8000)
+│   └── Dockerfile                  # Gateway container spec
 │
 ├── architecture/
 │   └── architecture_design.md      # Architecture diagrams & sequence workflows
@@ -140,34 +140,48 @@ movie-concert-microservices/
 │   └── load_generator.py           # Custom multi-threaded benchmark generator
 │
 ├── results/
-│   ├── benchmark_summary.json      # Structured load test metrics (100, 1K, 10K)
-│   ├── benchmark_report.md         # Full academic evaluation report
-│   ├── generate_graphs.py          # Dashboard & chart generator
-│   └── dashboard.html              # Interactive performance report
+│   ├── README.md                   # Benchmark results documentation with charts
+│   ├── benchmark_summary.json      # Machine-readable metrics (Manual W1-W5 & 10K)
+│   ├── benchmark_report.md         # In-depth academic evaluation report
+│   ├── dashboard.html              # Live telemetry & traffic simulator dashboard
+│   ├── generate_graphs.py          # Publication-quality Matplotlib chart generator
+│   ├── graph1_response_time.png    # Manual Graph 1: Concurrency vs Response Time
+│   ├── graph2_throughput.png       # Manual Graph 2: Concurrency vs Throughput
+│   ├── graph3_cpu_utilization.png  # Manual Graph 3: Concurrency vs CPU Utilization
+│   ├── graph4_memory_utilization.png # Manual Graph 4: Concurrency vs Memory
+│   ├── throughput_comparison.png   # Extended Throughput Scaling Bar Chart
+│   ├── latency_percentiles.png     # Extended Latency Percentiles Multi-Line Chart
+│   └── concurrency_scaling.png     # Extended Dual-Axis Concurrency Scaling Curve
+│
+├── scrnshots/
+│   ├── README.md                   # Visual evidence gallery with technical descriptions
+│   ├── Recording 2026-10-05 115033.mp4 # Dynamic execution session video (21.5 MB)
+│   └── Screenshot 2026-10-05 *.png # 10 verified terminal execution screenshots
 │
 ├── services/
-│   ├── event-service/
+│   ├── event-service/              # Event catalog, movies & concerts (Port 5001)
 │   │   ├── app.py
 │   │   ├── requirements.txt
 │   │   └── Dockerfile
-│   ├── user-service/
+│   ├── user-service/               # User profiles and authentication (Port 5002)
 │   │   ├── app.py
 │   │   ├── requirements.txt
 │   │   └── Dockerfile
-│   ├── seat-service/
+│   ├── seat-service/               # Real-time seat inventory & locks (Port 5003)
 │   │   ├── app.py
 │   │   ├── requirements.txt
 │   │   └── Dockerfile
-│   ├── booking-service/
+│   ├── booking-service/            # Saga orchestrator workflow (Port 5004)
 │   │   ├── app.py
 │   │   ├── requirements.txt
 │   │   └── Dockerfile
-│   └── payment-service/
+│   └── payment-service/            # Payment processing & audit ledger (Port 5005)
 │       ├── app.py
 │       ├── requirements.txt
 │       └── Dockerfile
 │
-├── docker-compose.yml              # Complete 6-service orchestration
+├── docker-compose.yml              # Complete 6-service orchestration specification
+├── VERIFICATION.md                 # Detailed screenshot-by-screenshot verification guide
 ├── .gitignore
 └── README.md
 ```
@@ -190,7 +204,9 @@ The API Gateway is the public reverse proxy routing incoming traffic to appropri
 | :--- | :--- | :--- | :--- |
 | `GET` | `/` | API Gateway | Gateway metadata & registered service endpoints |
 | `GET` | `/health` | All Services | Aggregated live health check and latency ping |
-| `ALL` | `/events/*` | Event Service | Event catalog queries |
+| `GET` | `/events` | Event Service | Complete event catalog queries |
+| `GET` | `/movies` | Event Service | Filtered movie listings (e.g. *Avengers: Secret Wars*) |
+| `GET` | `/concerts` | Event Service | Filtered live concert events (e.g. *Arijit Singh Live*) |
 | `ALL` | `/users/*` | User Service | User accounts and profile actions |
 | `ALL` | `/seats/*` | Seat Service | Seat availability, reservation, release |
 | `ALL` | `/bookings/*` | Booking Service| End-to-end booking orchestration |
@@ -237,9 +253,16 @@ docker compose down
 Invoke-RestMethod http://localhost:8000/health
 ```
 
-### 2. Browse Events (via Gateway)
+### 2. Browse Events, Movies, and Concerts (via Gateway)
 ```powershell
+# Browse unified event catalog
 Invoke-RestMethod http://localhost:8000/events
+
+# Browse filtered movies
+Invoke-RestMethod http://localhost:8000/movies
+
+# Browse filtered concerts
+Invoke-RestMethod http://localhost:8000/concerts
 ```
 
 ### 3. Check Available Seats (via Gateway)
@@ -285,6 +308,20 @@ The platform was rigorously evaluated according to the **Cloud Computing Laborat
 | **99th Percentile ($p99$)** | 68.30 ms | 165.80 ms | 284.10 ms |
 | **Failure Rate** | 0.00% | 0.00% | 0.20% |
 
+### Recommended Performance Graphs (Manual Page 3)
+
+| Graph 1: Concurrent Requests vs Average Response Time | Graph 2: Concurrent Requests vs Throughput |
+|:---:|:---:|
+| ![Graph 1](results/graph1_response_time.png) | ![Graph 2](results/graph2_throughput.png) |
+
+| Graph 3: Concurrent Requests vs CPU Utilization | Graph 4: Concurrent Requests vs Memory Utilization |
+|:---:|:---:|
+| ![Graph 3](results/graph3_cpu_utilization.png) | ![Graph 4](results/graph4_memory_utilization.png) |
+
+*For extended multi-tier benchmark analysis (Throughput Bar Charts, $p50$-$p99$ Percentiles, and Dual-Axis Concurrency Curves), see [**`results/README.md`**](results/README.md).*
+
+---
+
 ### Running the Custom Load Generator
 
 ```bash
@@ -292,13 +329,22 @@ cd load-testing
 python load_generator.py -n 1000 -c 50 --endpoint mix
 ```
 
-### Viewing the Performance Dashboard
+### Real-Time Live Telemetry & Traffic Studio (`dashboard.html`)
 
-Generate the visualization graphs and open the interactive dashboard:
+An interactive, live operations dashboard is available at [`results/dashboard.html`](results/dashboard.html). It features:
+- **Active Health Heartbeat:** Live latency monitoring across all 6 microservices polling every 1.5 seconds.
+- **In-Browser Traffic Simulation:** Interactive start/stop traffic generator injecting live test loads at 5, 10, 20, or 50 RPS.
+- **Live Streaming Charts:** Real-time Chart.js streaming graphs drawing live throughput and latency curves dynamically.
+
+To open the dashboard in your default browser:
+```powershell
+Start-Process "results\dashboard.html"
+```
+
+To re-generate static visualization graphs:
 ```bash
 cd results
 python generate_graphs.py
-# Open results/dashboard.html in any browser
 ```
 
 ---
@@ -321,10 +367,11 @@ python generate_graphs.py
 
 ## Laboratory Verification & Execution Evidence
 
-A complete, screenshot-by-screenshot and video verification report mapped to the **Cloud Computing Laboratory Evaluation Manual** is documented in [**`VERIFICATION.md`**](VERIFICATION.md).
+A complete, screenshot-by-screenshot and video verification report mapped to the **Cloud Computing Laboratory Evaluation Manual** is documented in [**`VERIFICATION.md`**](VERIFICATION.md) and [**`scrnshots/README.md`**](scrnshots/README.md).
 
 ### Verification Artifacts Summary
-- **Evaluation Guide:** [VERIFICATION.md](VERIFICATION.md)
+- **Detailed Evaluation Guide:** [VERIFICATION.md](VERIFICATION.md)
+- **Visual Evidence Gallery:** [scrnshots/README.md](scrnshots/README.md) containing every terminal screenshot embedded with its technical description.
 - **10 Verification Screenshots:** Located in [`scrnshots/`](scrnshots/) covering parallel image builds, container lifecycle status, distributed REST booking transactions, HTTP 409 concurrency protection, `docker stats` telemetry, API Gateway health pings, route forwarding, audit trails, and automated load benchmarks.
 - **Dynamic Session Video:** [`scrnshots/Recording 2026-10-05 115033.mp4`](scrnshots/Recording%202026-10-05%20115033.mp4) demonstrating live execution of the microservices system.
 
