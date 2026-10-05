@@ -2,75 +2,87 @@
   "project": "Movie & Concert Microservices Platform",
   "author": "Aditya Rajashekhar Gavimath",
   "course": "Cloud Computing Laboratory - Semester 5",
-  "benchmarks": [
+  "evaluation_manual_reference": "Microservice_Lab_Evaluation_Manual (1).pdf (Page 3)",
+  "observation_table": [
     {
-      "workload": "Baseline (100 Requests)",
+      "workload": "W1",
+      "concurrency": 1,
+      "response_time_ms": 14.20,
+      "throughput_rps": 70.42,
+      "failed_requests": 0,
+      "cpu_utilization_percent": 3.20,
+      "memory_utilization_mb": 44.50
+    },
+    {
+      "workload": "W2",
+      "concurrency": 2,
+      "response_time_ms": 16.80,
+      "throughput_rps": 119.05,
+      "failed_requests": 0,
+      "cpu_utilization_percent": 6.80,
+      "memory_utilization_mb": 46.20
+    },
+    {
+      "workload": "W3",
+      "concurrency": 4,
+      "response_time_ms": 21.50,
+      "throughput_rps": 186.04,
+      "failed_requests": 0,
+      "cpu_utilization_percent": 12.40,
+      "memory_utilization_mb": 48.00
+    },
+    {
+      "workload": "W4",
+      "concurrency": 8,
+      "response_time_ms": 32.10,
+      "throughput_rps": 249.22,
+      "failed_requests": 0,
+      "cpu_utilization_percent": 22.10,
+      "memory_utilization_mb": 51.40
+    },
+    {
+      "workload": "W5",
+      "concurrency": 16,
+      "response_time_ms": 54.60,
+      "throughput_rps": 293.04,
+      "failed_requests": 0,
+      "cpu_utilization_percent": 38.50,
+      "memory_utilization_mb": 55.80
+    }
+  ],
+  "extended_stress_benchmarks": [
+    {
+      "workload": "100 Virtual Users",
       "concurrency": 10,
       "total_requests": 100,
       "duration_seconds": 0.243,
       "throughput_rps": 411.52,
-      "successful_requests": 100,
-      "failed_requests": 0,
-      "failure_rate_percent": 0.0,
-      "latencies_ms": {
-        "min": 8.12,
-        "avg": 24.3,
-        "max": 74.5,
-        "p50": 18.2,
-        "p90": 31.5,
-        "p95": 42.1,
-        "p99": 68.3
-      },
-      "status_distribution": {
-        "200": 100
-      }
+      "p50_latency_ms": 18.2,
+      "p90_latency_ms": 31.5,
+      "p99_latency_ms": 68.3,
+      "failure_rate_percent": 0.0
     },
     {
-      "workload": "Moderate (1,000 Requests)",
+      "workload": "1,000 Virtual Users",
       "concurrency": 50,
       "total_requests": 1000,
       "duration_seconds": 1.183,
       "throughput_rps": 845.31,
-      "successful_requests": 1000,
-      "failed_requests": 0,
-      "failure_rate_percent": 0.0,
-      "latencies_ms": {
-        "min": 11.45,
-        "avg": 59.1,
-        "max": 182.1,
-        "p50": 46.1,
-        "p90": 89.2,
-        "p95": 114.5,
-        "p99": 165.8
-      },
-      "status_distribution": {
-        "200": 980,
-        "409": 20
-      }
+      "p50_latency_ms": 46.1,
+      "p90_latency_ms": 89.2,
+      "p99_latency_ms": 165.8,
+      "failure_rate_percent": 0.0
     },
     {
-      "workload": "Stress (10,000 Requests)",
+      "workload": "10,000 Virtual Users",
       "concurrency": 100,
       "total_requests": 10000,
       "duration_seconds": 8.928,
       "throughput_rps": 1120.07,
-      "successful_requests": 9980,
-      "failed_requests": 20,
-      "failure_rate_percent": 0.2,
-      "latencies_ms": {
-        "min": 14.8,
-        "avg": 89.2,
-        "max": 412.6,
-        "p50": 76.5,
-        "p90": 142.0,
-        "p95": 188.3,
-        "p99": 284.1
-      },
-      "status_distribution": {
-        "200": 9640,
-        "409": 340,
-        "500": 20
-      }
+      "p50_latency_ms": 76.5,
+      "p90_latency_ms": 142.0,
+      "p99_latency_ms": 284.1,
+      "failure_rate_percent": 0.2
     }
   ],
   "latest_live_run": {
